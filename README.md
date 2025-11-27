@@ -80,4 +80,4 @@ Open Cursor and hit :point_right:**File**, :point_right:**Preferences**, :point_
 - For the first time using Cursor generative AI, is it recommended to:
   - Develop a basic functional playwright test case, 
   - Ask the chat GPT to create a trainning_test.prompt.md file for the basic functional playwright test case, 
-  - Drag and drop both trainning_test.prompt.md and general_test_runner.prompt.md to the typing area and type "Execute trainning_test_web.prompt.md" and hit :arrow_up:. This way, Cursor will be trainned properly applying the general test parameters into the scope of the current application under test. 
+  - Drag and drop both trainning (e.g. trainning_test_web_.prompt.md) and general runner (e.g. general_web_test_runner.prompt.md) files to the typing area and type "Execute trainning_test_web.prompt.md" and hit :arrow_up:. This way, Cursor will be trainned properly applying the general test parameters into the scope of the current application under test. 
