@@ -1,4 +1,4 @@
-# playwright_and_mcp-expandtesting_api_and_web
+# playwright-and-mcp-expandtesting_api_and_web
 
 API and WEB testing in [expandtesting](https://practice.expandtesting.com/notes/app/) note app. This project contains basic examples on how to use playwright-mcp to test API, WEB and how to combine API and WEB tests. Good practices such as AI prompting, Generative AI, AI debugging, hooks, custom commands and tags, among others, are used. All the necessary support documentation to develop this project is placed here. When it comes to the API part, it deals with the x-www-form-urlencoded content type.
 
