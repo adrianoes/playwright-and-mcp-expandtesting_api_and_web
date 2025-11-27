@@ -1,0 +1,9 @@
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+commiting.txt
+tests_backups
+# Playwright
+/playwright/.auth/
