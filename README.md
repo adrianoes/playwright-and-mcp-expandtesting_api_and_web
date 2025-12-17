@@ -10,7 +10,8 @@ API and WEB testing in [expandtesting](https://practice.expandtesting.com/notes/
 | npm                           | 10.9.2   | -                                                               |
 | Playwright                    | 1.57.0   | -                                                               |
 | Playwright Test for VSCode    | 1.1.15   | -                                                               |
-| Faker                         | 10.1.0   | -                                                               |              
+| Faker                         | 10.1.0   | -                                                               | 
+| dotenv                        | 17.2.3   | -                                                               |              
 
 # Installation:
 
@@ -42,6 +43,7 @@ Open Cursor and hit :point_right:**File**, :point_right:**Preferences**, :point_
   - Hit :point_right:**Enter** to install Playwright browsers.
 - Look for Playwright Test for VSCode in the extensions marketplace and install the one from Microsoft.
 - Execute ```npm install @faker-js/faker --save-dev``` to install faker library.
+- Execute ```npm i -D dotenv``` to install dotenv module.
 
 # Tests:
 

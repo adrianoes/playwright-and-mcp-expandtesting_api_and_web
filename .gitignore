@@ -6,3 +6,4 @@ node_modules/
 commiting.txt
 # Playwright
 /playwright/.auth/
+.env
