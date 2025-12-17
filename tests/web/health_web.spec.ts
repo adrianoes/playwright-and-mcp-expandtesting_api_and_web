@@ -13,7 +13,7 @@ test.describe('Health Web Tests', () => {
         await expect(page).toHaveTitle('Notes React Application for Automation Testing Practice')
         
         // Step 4: Validate welcome heading is visible - Checkpoint for main content
-        const welcomeHeading = page.getByRole('heading', { name: 'Welcome to Notes Apo' })
+        const welcomeHeading = page.getByRole('heading', { name: 'Welcome to Notes App' })
         await expect(welcomeHeading).toBeVisible()
         
         // Step 5: Validate subtitle heading is visible - Checkpoint for content structure
