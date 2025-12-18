@@ -44,6 +44,15 @@ Open Cursor and hit :point_right:**File**, :point_right:**Preferences**, :point_
 - Look for Playwright Test for VSCode in the extensions marketplace and install the one from Microsoft.
 - Execute ```npm install @faker-js/faker --save-dev``` to install faker library.
 - Execute ```npm i -D dotenv``` to install dotenv module.
+- See .env file and configure it as below, or customize it according to your project needs.
+    ```
+    JIRA_BASE_URL="https://your_project_url.atlassian.net"
+    JIRA_EMAIL="your_email@xyz.com"
+    JIRA_API_TOKEN="xxxxxx_your_api_token_xxxxxxxxxxxxx"
+    JIRA_PROJECT_KEY="xxx_your_jira_project_key_xxxx"
+    JIRA_ISSUE_TYPE="Bug"
+    ```
+  Contact your Jira admin to double check your API token permissions.
 
 # Tests:
 
