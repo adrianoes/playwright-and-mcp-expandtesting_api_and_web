@@ -63,6 +63,7 @@ Open Cursor and hit :point_right:**File**, :point_right:**Preferences**, :point_
 - Execute ```npx playwright test --grep "@BASIC"``` to run the tests tagged with BASIC tag in Powershell.
 - Execute ```npx playwright test --grep-invert "@NEGATIVE"``` to run the tests not tagged with NEGATIVE tag in Powershell.
 - Execute ```npx playwright test --grep-invert "(?=.*@API)(?=.*@FULL)"``` to run the tests tagged with both API and FULL tags in Powershell.
+- Execute ```npx playwright test --grep "TC001"``` to run a specific test by its TC number (e.g., TC001, TC640, etc.) in Powershell. If the test fails, a bug is automatically created in Jira and linked to the configured EPIC.
 
 # Support:
 
