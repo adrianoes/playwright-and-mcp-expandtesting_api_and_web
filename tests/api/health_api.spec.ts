@@ -6,7 +6,7 @@ test.describe('Health API Tests', () => {
     const body = await response.json()
 
     expect(response.status()).toEqual(200)
-    expect(body.message).toEqual('Notes API is Runningy')
+    expect(body.message).toEqual('Notes API is Running')
     expect(body.success).toBe(true)
   })
 })
