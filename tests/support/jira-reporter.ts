@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type {
   FullConfig,
+  FullResult,
   Reporter,
   Suite,
   TestCase,
@@ -81,8 +82,18 @@ function truncate(input: string, maxChars: number): string {
   return `${input.slice(0, maxChars)}\n\n[truncated to ${maxChars} chars]`;
 }
 
-async function jiraCreateIssue(env: JiraEnv, summary: string, description: string): Promise<string> {
+async function jiraCreateIssue(env: JiraEnv, summary: string, description: string, labels?: string[]): Promise<string> {
   const url = `${env.baseUrl}/rest/api/2/issue`;
+  const payload = {
+    fields: {
+      project: { key: env.projectKey },
+      issuetype: { name: env.issueType },
+      summary,
+      description,
+      labels: labels && labels.length ? labels : undefined,
+    },
+  };
+  console.log(`[jira-reporter] Creating issue with labels: ${labels?.join(', ') || '(none)'}`);
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -90,14 +101,7 @@ async function jiraCreateIssue(env: JiraEnv, summary: string, description: strin
       Accept: 'application/json',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      fields: {
-        project: { key: env.projectKey },
-        issuetype: { name: env.issueType },
-        summary,
-        description,
-      },
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -113,29 +117,39 @@ async function jiraCreateIssue(env: JiraEnv, summary: string, description: strin
 async function jiraAttachFile(env: JiraEnv, issueKey: string, filePath: string): Promise<void> {
   const url = `${env.baseUrl}/rest/api/2/issue/${encodeURIComponent(issueKey)}/attachments`;
   const fileName = path.basename(filePath);
-  const buffer = fs.readFileSync(filePath);
+  const fileBuffer = fs.readFileSync(filePath);
 
-  // Node 18+ provides fetch + FormData + Blob.
+  // Use multipart/form-data for file upload as per Jira API spec.
+  // Node.js FormData will automatically set Content-Type header with boundary.
   const form = new FormData();
-  form.append('file', new Blob([buffer]), fileName);
+  form.append('file', new Blob([fileBuffer], { type: 'application/octet-stream' }), fileName);
 
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: basicAuthHeader(env.email, env.apiToken),
-      Accept: 'application/json',
-      // Required by Jira Cloud for attachments:
+      // Required by Jira Cloud for attachments - tells Jira to accept file without CSRF check
       'X-Atlassian-Token': 'no-check',
     },
     body: form,
+    // Do NOT set Content-Type; fetch + FormData will set it with correct boundary
   });
 
+  console.log(`[jira-reporter] Attachment response for ${fileName}: ${res.status}`);
+  
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
+    let body = '';
+    try {
+      body = await res.text();
+    } catch {
+      body = '(could not read response)';
+    }
     throw new Error(
       `[jira-reporter] Failed to attach file "${fileName}" to ${issueKey} (${res.status}): ${body}`,
     );
   }
+  
+  console.log(`[jira-reporter] Successfully attached "${fileName}" to ${issueKey}`);
 }
 
 function getSpecFile(test: TestCase): string {
@@ -154,9 +168,51 @@ function stringifyStdIO(chunks: Array<string | Buffer>): string {
   return chunks.map((c) => (Buffer.isBuffer(c) ? c.toString('utf8') : c)).join('');
 }
 
+function collectLabels(test: TestCase): string[] {
+  const labels = new Set<string>();
+
+  // Always include automation markers
+  labels.add('automated-test');
+  labels.add('playwright');
+
+  // Project (browser) label for traceability
+  try {
+    const projectName = (test as any).project?.() ? (test as any).project().name : undefined;
+    if (projectName) labels.add(projectName.toLowerCase());
+  } catch {
+    // ignore
+  }
+
+  // Extract tags from title path (captures @API, @WEB, @API_AND_WEB, @BASIC, @FULL, @NEGATIVE, etc.)
+  const titleText = test.titlePath().join(' ');
+  const tagRegex = /@([A-Z_]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = tagRegex.exec(titleText)) !== null) {
+    const tag = match[1];
+    switch (tag) {
+      case 'API':
+        labels.add('api-test');
+        break;
+      case 'WEB':
+        labels.add('web-test');
+        break;
+      case 'API_AND_WEB':
+        labels.add('api-test');
+        labels.add('web-test');
+        break;
+      default:
+        // Ignore other tags (e.g., BASIC/FULL/NEGATIVE) per request
+        break;
+    }
+  }
+
+  return Array.from(labels);
+}
+
 export default class JiraReporter implements Reporter {
   private config?: FullConfig;
   private env?: JiraEnv;
+  private createdIssues: string[] = [];
 
   async onBegin(config: FullConfig, _suite: Suite) {
     this.config = config;
@@ -183,6 +239,9 @@ export default class JiraReporter implements Reporter {
       const stderr = stringifyStdIO(result.stderr || []);
       const errorText = stringifyError(result);
 
+      const labels = collectLabels(test);
+      console.log(`[jira-reporter] Labels for issue: ${labels.join(', ') || '(none)'}`);
+
       const description = toPlainTextDescription({
         testTitle,
         specFile,
@@ -193,7 +252,46 @@ export default class JiraReporter implements Reporter {
         stderr: truncate(stripAnsi(stderr), 20000),
       });
 
-      const issueKey = await jiraCreateIssue(this.env, summary, description);
+      const issueKey = await jiraCreateIssue(this.env, summary, description, labels);
+      this.createdIssues.push(issueKey);
+
+      // Attach a lightweight text summary (helps when no Playwright artifacts are generated, e.g., API-only tests).
+      try {
+        const summaryDir = path.join(process.cwd(), 'test-results');
+        fs.mkdirSync(summaryDir, { recursive: true });
+        const summaryPath = path.join(summaryDir, `jira-${issueKey}.txt`);
+        const summaryText = [
+          `Issue: ${issueKey}`,
+          `Test: ${testTitle}`,
+          `Spec: ${specFile}`,
+          `Project: ${this.config?.projects?.[0]?.name || ''}`,
+          `DurationMs: ${result.duration}`,
+          `Status: ${result.status}`,
+          '',
+          'Error:',
+          truncate(stripAnsi(errorText), 2000) || '(none)',
+          '',
+          'Stdout:',
+          truncate(stripAnsi(stdout), 2000) || '(empty)',
+          '',
+          'Stderr:',
+          truncate(stripAnsi(stderr), 2000) || '(empty)',
+        ].join('\n');
+        fs.writeFileSync(summaryPath, summaryText, 'utf8');
+        await jiraAttachFile(this.env, issueKey, summaryPath);
+      } catch (e) {
+        console.warn(`[jira-reporter] Failed to attach summary file: ${String(e)}`);
+      }
+
+      // Attach Playwright HTML report entry point if available (common for both UI and API runs).
+      try {
+        const reportPath = path.join(process.cwd(), 'playwright-report', 'index.html');
+        if (fs.existsSync(reportPath)) {
+          await jiraAttachFile(this.env, issueKey, reportPath);
+        }
+      } catch (e) {
+        console.warn(`[jira-reporter] Failed to attach HTML report: ${String(e)}`);
+      }
 
       // Attach all Playwright attachments that have a file path (screenshot/video/trace/etc).
       // Playwright typically provides them on failure when configured.
@@ -213,6 +311,27 @@ export default class JiraReporter implements Reporter {
     } catch (e) {
       // Never crash the test run due to Jira integration issues.
       console.warn(`[jira-reporter] Jira integration failed: ${String(e)}`);
+    }
+  }
+
+  async onEnd(result: FullResult) {
+    if (!this.env || this.createdIssues.length === 0) return;
+
+    // After all tests complete, the Playwright HTML report is generated.
+    // Attach it to all created issues.
+    const reportPath = path.join(process.cwd(), 'playwright-report', 'index.html');
+    if (!fs.existsSync(reportPath)) {
+      console.log('[jira-reporter] Playwright HTML report not generated; skipping attachment.');
+      return;
+    }
+
+    for (const issueKey of this.createdIssues) {
+      try {
+        await jiraAttachFile(this.env, issueKey, reportPath);
+        console.log(`[jira-reporter] Attached Playwright HTML report to ${issueKey}`);
+      } catch (e) {
+        console.warn(`[jira-reporter] Failed to attach report to ${issueKey}: ${String(e)}`);
+      }
     }
   }
 }
